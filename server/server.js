@@ -10,7 +10,7 @@ connectDB();
 const app = express();
 
 app.use(cors({
-  origin: "*",
+  origin: "https://mechanical-gpt-backend.onrender.com",
   credentials: true
 }));
 app.use(express.json({ limit: "10mb" }));
