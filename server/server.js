@@ -10,7 +10,7 @@ connectDB();
 const app = express();
 
 const allowedOrigins = [
-  "https://mechanical-gpt-frontend.vercel.app/",
+  "https://mechanical-gpt-frontend.vercel.app",
 ];
 
 app.use(cors({
