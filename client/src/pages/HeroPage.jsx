@@ -14,6 +14,7 @@ function MechanicalCanvas() {
 
     // Geometric shapes state
     const gears = [];
+    const rings = [];
     const lines = [];
 
     const resize = () => {
@@ -37,7 +38,7 @@ function MechanicalCanvas() {
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
         ctx.beginPath();
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 1.6;
         ctx.strokeStyle = `rgba(255, 107, 0, ${this.opacity})`;
 
         for (let i = 0; i < this.teeth; i++) {
@@ -50,26 +51,73 @@ function MechanicalCanvas() {
             Math.sin(theta) * this.radius,
           );
           ctx.lineTo(
-            Math.cos(theta) * (this.radius + 10),
-            Math.sin(theta) * (this.radius + 10),
+            Math.cos(theta) * (this.radius + 8),
+            Math.sin(theta) * (this.radius + 8),
           );
           ctx.lineTo(
-            Math.cos(nextTheta) * (this.radius + 10),
-            Math.sin(nextTheta) * (this.radius + 10),
+            Math.cos(nextTheta) * (this.radius + 8),
+            Math.sin(nextTheta) * (this.radius + 8),
           );
           ctx.lineTo(
             Math.cos(nextTheta) * this.radius,
             Math.sin(nextTheta) * this.radius,
           );
+          ctx.lineTo(
+            Math.cos(endTheta) * this.radius,
+            Math.sin(endTheta) * this.radius,
+          );
         }
         ctx.closePath();
         ctx.stroke();
 
-        // Inner circle
+        // Inner circular structure
         ctx.beginPath();
-        ctx.arc(0, 0, this.radius * 0.6, 0, Math.PI * 2);
+        ctx.arc(0, 0, this.radius - 4, 0, Math.PI * 2);
         ctx.stroke();
 
+        ctx.beginPath();
+        ctx.arc(0, 0, 6, 0, Math.PI * 2);
+        ctx.stroke();
+
+        const holeCount = 5;
+        for (let i = 0; i < holeCount; i++) {
+          const hAngle = (i / holeCount) * Math.PI * 2;
+          const hR = this.radius * 0.55;
+          ctx.beginPath();
+          ctx.arc(
+            Math.cos(hAngle) * hR,
+            Math.sin(hAngle) * hR,
+            this.radius * 0.15,
+            0,
+            Math.PI * 2,
+          );
+          ctx.stroke();
+        }
+
+        ctx.restore();
+        this.angle += this.speed;
+      }
+    }
+
+    class TechRing {
+      constructor(x, y, radius, speed, dash) {
+        this.x = x;
+        this.y = y;
+        this.radius = radius;
+        this.speed = speed;
+        this.angle = 0;
+        this.dash = dash;
+      }
+      draw() {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+        ctx.beginPath();
+        ctx.setLineDash(this.dash);
+        ctx.strokeStyle = "rgba(100, 116, 139, 0.08)";
+        ctx.lineWidth = 1;
+        ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+        ctx.stroke();
         ctx.restore();
         this.angle += this.speed;
       }
@@ -114,13 +162,18 @@ function MechanicalCanvas() {
 
     const initShapes = () => {
       gears.length = 0;
+      rings.length = 0;
       lines.length = 0;
 
-      // Add a few large "background" gears
-      gears.push(new Gear(W * 0.1, H * 0.2, 80, 12, 0.005, 0.1));
-      gears.push(new Gear(W * 0.85, H * 0.15, 60, 10, -0.007, 0.08));
-      gears.push(new Gear(W * 0.9, H * 0.8, 120, 16, 0.003, 0.06));
-      gears.push(new Gear(W * 0.15, H * 0.85, 40, 8, -0.01, 0.12));
+      // decorative background rings
+      rings.push(new TechRing(W * 0.5, H * 0.5, 300, 0.0005, [15, 20]));
+      rings.push(new TechRing(W * 0.5, H * 0.5, 330, -0.0003, [10, 15]));
+
+      // larger gears
+      gears.push(new Gear(W * 0.1, H * 0.2, 80, 12, 0.005, 0.15));
+      gears.push(new Gear(W * 0.85, H * 0.15, 60, 10, -0.007, 0.1));
+      gears.push(new Gear(W * 0.9, H * 0.8, 120, 16, 0.003, 0.08));
+      gears.push(new Gear(W * 0.15, H * 0.85, 40, 8, -0.01, 0.15));
 
       for (let i = 0; i < 15; i++) {
         lines.push(new TechLine());
@@ -132,9 +185,9 @@ function MechanicalCanvas() {
 
       // Draw static grid (checks)
       ctx.beginPath();
-      ctx.strokeStyle = "rgba(0, 0, 0, 0.03)";
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.035)";
       ctx.lineWidth = 1;
-      const gridSize = 50;
+      const gridSize = 60;
       for (let x = 0; x <= W; x += gridSize) {
         ctx.moveTo(x, 0);
         ctx.lineTo(x, H);
@@ -145,7 +198,20 @@ function MechanicalCanvas() {
       }
       ctx.stroke();
 
+      rings.forEach((r) => r.draw());
       gears.forEach((g) => g.draw());
+
+      // Moving diagonal technical lines
+      ctx.beginPath();
+      ctx.strokeStyle = "rgba(255, 107, 0, 0.05)";
+      const t = Date.now() * 0.0003;
+      for (let i = 0; i < 6; i++) {
+        const o = (t + i * 2.2) % 15;
+        ctx.moveTo(0, H * (i * 0.2) + o * 25);
+        ctx.lineTo(W, H * (i * 0.2) - 300 + o * 25);
+      }
+      ctx.stroke();
+
       lines.forEach((l) => {
         l.move();
         l.draw();
@@ -491,8 +557,8 @@ export default function HeroPage() {
           transition={{ duration: 0.6, delay: 0.5 }}
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-            gap: 20,
+            gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+            gap: 24,
           }}
         >
           {features.map((f, i) => (
@@ -502,13 +568,14 @@ export default function HeroPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.45, delay: 0.55 + i * 0.08 }}
               style={{
-                background: "white",
-                border: "1px solid #e2e8f0",
-                borderRadius: 20,
-                padding: "24px 20px",
+                background: "rgba(255, 255, 255, 0.7)",
+                backdropFilter: "blur(12px)",
+                border: "1px solid rgba(226, 232, 240, 0.8)",
+                borderRadius: 24,
+                padding: "28px 24px",
                 textAlign: "left",
-                boxShadow: "0 4px 20px -5px rgba(0,0,0,0.05)",
-                transition: "all 0.3s ease",
+                boxShadow: "0 8px 32px -10px rgba(0,0,0,0.06)",
+                transition: "all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
                 cursor: "default",
                 position: "relative",
                 overflow: "hidden",
@@ -516,24 +583,30 @@ export default function HeroPage() {
               onMouseEnter={(e) => {
                 const el = e.currentTarget;
                 el.style.borderColor = f.color;
-                el.style.transform = "translateY(-6px)";
-                el.style.boxShadow = `0 20px 30px -10px ${f.color}15`;
+                el.style.transform = "translateY(-8px) scale(1.02)";
+                el.style.boxShadow = `0 24px 48px -12px ${f.color}25`;
+                el.style.background = "white";
               }}
               onMouseLeave={(e) => {
                 const el = e.currentTarget;
-                el.style.borderColor = "#e2e8f0";
-                el.style.transform = "translateY(0)";
-                el.style.boxShadow = "0 4px 20px -5px rgba(0,0,0,0.05)";
+                el.style.borderColor = "rgba(226, 232, 240, 0.8)";
+                el.style.transform = "translateY(0) scale(1)";
+                el.style.boxShadow = "0 8px 32px -10px rgba(0,0,0,0.06)";
+                el.style.background = "rgba(255, 255, 255, 0.7)";
               }}
             >
               <div
                 style={{
                   fontSize: 32,
-                  marginBottom: 16,
-                  display: "inline-block",
-                  padding: "10px",
-                  background: `${f.color}10`,
-                  borderRadius: "12px",
+                  marginBottom: 20,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: "56px",
+                  height: "56px",
+                  background: `${f.color}15`,
+                  borderRadius: "16px",
+                  color: f.color,
                 }}
               >
                 {f.icon}
@@ -542,15 +615,35 @@ export default function HeroPage() {
                 style={{
                   color: "#0f172a",
                   fontWeight: 700,
-                  fontSize: 16,
+                  fontSize: 17,
                   fontFamily: "Outfit, sans-serif",
-                  marginBottom: 8,
+                  marginBottom: 10,
                 }}
               >
                 {f.title}
               </div>
-              <div style={{ color: "#64748b", fontSize: 13, lineHeight: 1.6 }}>
+              <div
+                style={{
+                  color: "#64748b",
+                  fontSize: 13.5,
+                  lineHeight: 1.6,
+                  fontWeight: 450,
+                }}
+              >
                 {f.desc}
+              </div>
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: -10,
+                  right: -10,
+                  fontSize: "64px",
+                  opacity: 0.03,
+                  pointerEvents: "none",
+                  transform: "rotate(-15deg)",
+                }}
+              >
+                {f.icon}
               </div>
             </motion.div>
           ))}
