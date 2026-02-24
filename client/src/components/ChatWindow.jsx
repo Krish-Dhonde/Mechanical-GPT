@@ -64,32 +64,11 @@ export default function ChatWindow() {
     setResult,
     loading,
     setLoading,
+    sessionId,
   } = useChatStore();
 
   const [prompt, setPrompt] = useState("");
-  const [sessionId] = useState(
-    () => localStorage.getItem("sessionId") || uuidv4(),
-  );
   const bottomRef = useRef(null);
-
-  useEffect(() => {
-    localStorage.setItem("sessionId", sessionId);
-  }, [sessionId]);
-
-  useEffect(() => {
-    localStorage.setItem("messages", JSON.stringify(messages));
-  }, [messages]);
-
-  useEffect(() => {
-    const saved = localStorage.getItem("messages");
-    if (saved) {
-      try {
-        JSON.parse(saved).forEach((msg) => addMessage(msg));
-      } catch {
-        /* ignore bad cache */
-      }
-    }
-  }, []);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -103,7 +82,8 @@ export default function ChatWindow() {
       return;
     }
 
-    addMessage({ role: "user", content: prompt });
+    const currentPrompt = prompt;
+    addMessage({ role: "user", content: currentPrompt });
     setPrompt("");
     setLoading(true);
 
@@ -112,7 +92,7 @@ export default function ChatWindow() {
         sessionId,
         operationType,
         subOperation,
-        userPrompt: prompt,
+        userPrompt: currentPrompt,
         inputs,
         image: inputs.image || null,
       });
@@ -120,6 +100,9 @@ export default function ChatWindow() {
       const data = response.data;
       addMessage({ role: "assistant", content: data.aiExplanation });
       setResult(data);
+
+      // Update sidebar history after a successful message which saves the chat
+      useChatStore.getState().fetchChats();
     } catch (error) {
       console.error(error);
       const msg =

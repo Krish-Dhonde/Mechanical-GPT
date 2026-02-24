@@ -9,6 +9,51 @@ import { generateAIResponse } from "../services/aiService.js";
 import { machineRecommendation } from "../services/machineEngine.js";
 import { latheSimulation } from "../services/latheEngine.js";
 
+export const getChats = async (req, res) => {
+  try {
+    const chats = await Chat.find(
+      {},
+      {
+        messages: { $slice: 1 },
+        sessionId: 1,
+        operationType: 1,
+        subOperation: 1,
+        updatedAt: 1,
+      },
+    ).sort({ updatedAt: -1 });
+    res.json(chats);
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Error fetching chats", error: error.message });
+  }
+};
+
+export const getChatBySession = async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const chat = await Chat.findOne({ sessionId });
+    if (!chat) return res.status(404).json({ message: "Chat not found" });
+    res.json(chat);
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Error fetching chat", error: error.message });
+  }
+};
+
+export const deleteChat = async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    await Chat.findOneAndDelete({ sessionId });
+    res.json({ message: "Chat deleted success" });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Error deleting chat", error: error.message });
+  }
+};
+
 export const handleChat = async (req, res) => {
   try {
     const {

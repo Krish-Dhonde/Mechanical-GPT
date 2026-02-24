@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useRef } from "react";
 
-function ParticleCanvas() {
+function MechanicalCanvas() {
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -11,81 +11,155 @@ function ParticleCanvas() {
     const ctx = canvas.getContext("2d");
     let raf;
     let W, H;
-    const PCount = 70;
-    let particles = [];
+
+    // Geometric shapes state
+    const gears = [];
+    const lines = [];
 
     const resize = () => {
-      W = canvas.width = canvas.offsetWidth;
-      H = canvas.height = canvas.offsetHeight;
+      W = canvas.width = window.innerWidth;
+      H = canvas.height = window.innerHeight;
+      initShapes();
     };
 
-    class Particle {
+    class Gear {
+      constructor(x, y, radius, teeth, speed, opacity) {
+        this.x = x;
+        this.y = y;
+        this.radius = radius;
+        this.teeth = teeth;
+        this.speed = speed;
+        this.angle = Math.random() * Math.PI * 2;
+        this.opacity = opacity;
+      }
+      draw() {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+        ctx.beginPath();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = `rgba(255, 107, 0, ${this.opacity})`;
+
+        for (let i = 0; i < this.teeth; i++) {
+          const theta = (i / this.teeth) * Math.PI * 2;
+          const nextTheta = ((i + 0.5) / this.teeth) * Math.PI * 2;
+          const endTheta = ((i + 1) / this.teeth) * Math.PI * 2;
+
+          ctx.lineTo(
+            Math.cos(theta) * this.radius,
+            Math.sin(theta) * this.radius,
+          );
+          ctx.lineTo(
+            Math.cos(theta) * (this.radius + 10),
+            Math.sin(theta) * (this.radius + 10),
+          );
+          ctx.lineTo(
+            Math.cos(nextTheta) * (this.radius + 10),
+            Math.sin(nextTheta) * (this.radius + 10),
+          );
+          ctx.lineTo(
+            Math.cos(nextTheta) * this.radius,
+            Math.sin(nextTheta) * this.radius,
+          );
+        }
+        ctx.closePath();
+        ctx.stroke();
+
+        // Inner circle
+        ctx.beginPath();
+        ctx.arc(0, 0, this.radius * 0.6, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.restore();
+        this.angle += this.speed;
+      }
+    }
+
+    class TechLine {
       constructor() {
         this.reset();
       }
       reset() {
         this.x = Math.random() * W;
         this.y = Math.random() * H;
-        this.r = Math.random() * 1.6 + 0.4;
-        this.vx = (Math.random() - 0.5) * 0.35;
-        this.vy = (Math.random() - 0.5) * 0.35;
-        this.alpha = Math.random() * 0.5 + 0.2;
-        this.color = Math.random() > 0.6 ? "#ff6b00" : "#94a3b8";
+        this.length = Math.random() * 150 + 50;
+        this.angle = Math.floor(Math.random() * 4) * 45 * (Math.PI / 180);
+        this.speed = Math.random() * 0.5 + 0.2;
+        this.opacity = Math.random() * 0.15 + 0.05;
       }
       move() {
-        this.x += this.vx;
-        this.y += this.vy;
-        if (this.x < 0 || this.x > W || this.y < 0 || this.y > H) this.reset();
+        this.x += Math.cos(this.angle) * this.speed;
+        this.y += Math.sin(this.angle) * this.speed;
+        if (
+          this.x < -100 ||
+          this.x > W + 100 ||
+          this.y < -100 ||
+          this.y > H + 100
+        ) {
+          this.reset();
+        }
       }
       draw() {
         ctx.beginPath();
-        ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
-        ctx.fillStyle = this.color;
-        ctx.globalAlpha = this.alpha;
-        ctx.fill();
-        ctx.globalAlpha = 1;
+        ctx.moveTo(this.x, this.y);
+        ctx.lineTo(
+          this.x + Math.cos(this.angle) * this.length,
+          this.y + Math.sin(this.angle) * this.length,
+        );
+        ctx.strokeStyle = `rgba(255, 107, 0, ${this.opacity})`;
+        ctx.lineWidth = 1;
+        ctx.stroke();
       }
     }
 
-    const init = () => {
-      resize();
-      particles = Array.from({ length: PCount }, () => new Particle());
-    };
+    const initShapes = () => {
+      gears.length = 0;
+      lines.length = 0;
 
-    const drawLines = () => {
-      for (let i = 0; i < particles.length; i++) {
-        for (let j = i + 1; j < particles.length; j++) {
-          const dx = particles[i].x - particles[j].x;
-          const dy = particles[i].y - particles[j].y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 120) {
-            ctx.beginPath();
-            ctx.moveTo(particles[i].x, particles[i].y);
-            ctx.lineTo(particles[j].x, particles[j].y);
-            ctx.strokeStyle = `rgba(255,107,0,${0.12 * (1 - dist / 120)})`;
-            ctx.lineWidth = 0.6;
-            ctx.stroke();
-          }
-        }
+      // Add a few large "background" gears
+      gears.push(new Gear(W * 0.1, H * 0.2, 80, 12, 0.005, 0.1));
+      gears.push(new Gear(W * 0.85, H * 0.15, 60, 10, -0.007, 0.08));
+      gears.push(new Gear(W * 0.9, H * 0.8, 120, 16, 0.003, 0.06));
+      gears.push(new Gear(W * 0.15, H * 0.85, 40, 8, -0.01, 0.12));
+
+      for (let i = 0; i < 15; i++) {
+        lines.push(new TechLine());
       }
     };
 
     const loop = () => {
       ctx.clearRect(0, 0, W, H);
-      particles.forEach((p) => {
-        p.move();
-        p.draw();
+
+      // Draw static grid (checks)
+      ctx.beginPath();
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.03)";
+      ctx.lineWidth = 1;
+      const gridSize = 50;
+      for (let x = 0; x <= W; x += gridSize) {
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, H);
+      }
+      for (let y = 0; y <= H; y += gridSize) {
+        ctx.moveTo(0, y);
+        ctx.lineTo(W, y);
+      }
+      ctx.stroke();
+
+      gears.forEach((g) => g.draw());
+      lines.forEach((l) => {
+        l.move();
+        l.draw();
       });
-      drawLines();
+
       raf = requestAnimationFrame(loop);
     };
 
-    init();
+    resize();
     loop();
-    window.addEventListener("resize", init);
+    window.addEventListener("resize", resize);
     return () => {
       cancelAnimationFrame(raf);
-      window.removeEventListener("resize", init);
+      window.removeEventListener("resize", resize);
     };
   }, []);
 
@@ -99,6 +173,7 @@ function ParticleCanvas() {
         height: "100%",
         pointerEvents: "none",
         zIndex: 0,
+        backgroundColor: "#f8fafc",
       }}
     />
   );
@@ -145,8 +220,7 @@ export default function HeroPage() {
     <div
       style={{
         minHeight: "100vh",
-        background:
-          "linear-gradient(135deg, #060c1a 0%, #0d1b2e 35%, #111827 65%, #060c1a 100%)",
+        background: "#f1f5f9",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -157,23 +231,23 @@ export default function HeroPage() {
         overflow: "hidden",
       }}
     >
-      {/* ── Particle Network ── */}
-      <ParticleCanvas />
+      {/* ── Mechanical Background ── */}
+      <MechanicalCanvas />
 
-      {/* ── Aurora Blobs ── */}
+      {/* ── Soft Aurora Blobs (Light Theme) ── */}
       <div
         style={{
           position: "absolute",
           top: "10%",
           left: "15%",
-          width: 480,
-          height: 320,
+          width: 580,
+          height: 420,
           background:
-            "radial-gradient(ellipse, rgba(255,107,0,0.13) 0%, transparent 70%)",
-          filter: "blur(60px)",
+            "radial-gradient(circle, rgba(255,107,0,0.06) 0%, transparent 70%)",
+          filter: "blur(80px)",
           pointerEvents: "none",
           zIndex: 0,
-          animation: "auroraMove 8s ease-in-out infinite alternate",
+          animation: "auroraMove 15s ease-in-out infinite alternate",
         }}
       />
       <div
@@ -181,92 +255,23 @@ export default function HeroPage() {
           position: "absolute",
           bottom: "15%",
           right: "10%",
-          width: 360,
-          height: 260,
+          width: 460,
+          height: 360,
           background:
-            "radial-gradient(ellipse, rgba(59,130,246,0.1) 0%, transparent 70%)",
-          filter: "blur(50px)",
+            "radial-gradient(circle, rgba(59,130,246,0.05) 0%, transparent 70%)",
+          filter: "blur(70px)",
           pointerEvents: "none",
           zIndex: 0,
-          animation: "auroraMove 12s ease-in-out infinite alternate-reverse",
+          animation: "auroraMove 20s ease-in-out infinite alternate-reverse",
         }}
       />
-      <div
-        style={{
-          position: "absolute",
-          top: "40%",
-          right: "20%",
-          width: 280,
-          height: 200,
-          background:
-            "radial-gradient(ellipse, rgba(168,85,247,0.08) 0%, transparent 70%)",
-          filter: "blur(40px)",
-          pointerEvents: "none",
-          zIndex: 0,
-        }}
-      />
-
-      {/* ── Grid Overlay ── */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          zIndex: 0,
-          pointerEvents: "none",
-          backgroundImage:
-            "linear-gradient(rgba(255,107,0,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,107,0,0.04) 1px, transparent 1px)",
-          backgroundSize: "60px 60px",
-          maskImage:
-            "radial-gradient(ellipse 100% 100% at 50% 50%, black 20%, transparent 90%)",
-        }}
-      />
-
-      {/* ── Floating Gear Rings ── */}
-      {[
-        { size: 140, top: "6%", right: "5%", op: 0.1, dir: 1 },
-        { size: 80, bottom: "10%", left: "4%", op: 0.08, dir: -1 },
-        { size: 55, top: "28%", left: "9%", op: 0.11, dir: 1 },
-        { size: 40, bottom: "30%", right: "12%", op: 0.09, dir: -1 },
-      ].map((g, i) => (
-        <div
-          key={i}
-          style={{
-            position: "absolute",
-            width: g.size,
-            height: g.size,
-            top: g.top,
-            bottom: g.bottom,
-            left: g.left,
-            right: g.right,
-            border: `1.5px solid rgba(255,107,0,${g.op})`,
-            borderRadius: "50%",
-            pointerEvents: "none",
-            zIndex: 0,
-            animation: `spin-slow ${20 + i * 7}s linear infinite`,
-            animationDirection: g.dir === -1 ? "reverse" : "normal",
-          }}
-        >
-          <div
-            style={{
-              position: "absolute",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%,-50%)",
-              width: "60%",
-              height: "60%",
-              border: `1px solid rgba(255,107,0,${g.op * 0.6})`,
-              borderRadius: "50%",
-            }}
-          />
-        </div>
-      ))}
 
       {/* ── Main Content ── */}
       <div
         style={{
           position: "relative",
           zIndex: 1,
-          maxWidth: 780,
+          maxWidth: 840,
           width: "100%",
         }}
       >
@@ -275,33 +280,33 @@ export default function HeroPage() {
           initial={{ opacity: 0, y: -16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          style={{ marginBottom: 28 }}
+          style={{ marginBottom: 32 }}
         >
           <span
             style={{
               display: "inline-flex",
               alignItems: "center",
               gap: 8,
-              padding: "6px 18px",
-              background: "rgba(255,107,0,0.12)",
-              border: "1px solid rgba(255,107,0,0.3)",
+              padding: "8px 20px",
+              background: "rgba(255, 107, 0, 0.08)",
+              border: "1px solid rgba(255, 107, 0, 0.2)",
               borderRadius: 99,
-              color: "#ff8c38",
-              fontSize: 12,
+              color: "#e65100",
+              fontSize: 13,
               fontWeight: 600,
               fontFamily: "Outfit, sans-serif",
-              letterSpacing: "0.07em",
+              letterSpacing: "0.05em",
               textTransform: "uppercase",
-              backdropFilter: "blur(8px)",
+              backdropFilter: "blur(4px)",
             }}
           >
             <span
               style={{
-                width: 7,
-                height: 7,
+                width: 8,
+                height: 8,
                 background: "#ff6b00",
                 borderRadius: "50%",
-                boxShadow: "0 0 8px #ff6b00, 0 0 16px rgba(255,107,0,0.5)",
+                boxShadow: "0 0 10px rgba(255,107,0,0.4)",
                 animation: "pulse 2s ease-in-out infinite",
               }}
             />
@@ -316,12 +321,12 @@ export default function HeroPage() {
           transition={{ duration: 0.6, delay: 0.1 }}
           style={{
             fontFamily: "Outfit, sans-serif",
-            fontSize: "clamp(44px, 8.5vw, 82px)",
+            fontSize: "clamp(48px, 9vw, 88px)",
             fontWeight: 800,
-            lineHeight: 1.06,
-            margin: "0 0 6px",
-            color: "white",
-            textShadow: "0 0 80px rgba(255,107,0,0.15)",
+            lineHeight: 1.02,
+            margin: "0 0 4px",
+            color: "#0f172a",
+            letterSpacing: "-0.02em",
           }}
         >
           Mechanical
@@ -332,15 +337,14 @@ export default function HeroPage() {
           transition={{ duration: 0.6, delay: 0.18 }}
           style={{
             fontFamily: "Outfit, sans-serif",
-            fontSize: "clamp(44px, 8.5vw, 82px)",
+            fontSize: "clamp(48px, 9vw, 88px)",
             fontWeight: 800,
-            lineHeight: 1.06,
-            margin: "0 0 28px",
-            background:
-              "linear-gradient(135deg, #ff6b00 0%, #ff8c38 40%, #ffb347 100%)",
+            lineHeight: 1.02,
+            margin: "0 0 32px",
+            background: "linear-gradient(135deg, #ff6b00 0%, #ff8c38 100%)",
             WebkitBackgroundClip: "text",
             WebkitTextFillColor: "transparent",
-            filter: "drop-shadow(0 0 30px rgba(255,107,0,0.4))",
+            filter: "drop-shadow(0 4px 12px rgba(255,107,0,0.15))",
           }}
         >
           GPT
@@ -352,16 +356,17 @@ export default function HeroPage() {
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.28 }}
           style={{
-            fontSize: 18,
-            color: "#94a3b8",
-            maxWidth: 540,
-            margin: "0 auto 44px",
-            lineHeight: 1.7,
+            fontSize: 19,
+            color: "#475569",
+            maxWidth: 580,
+            margin: "0 auto 48px",
+            lineHeight: 1.6,
             fontFamily: "Inter, sans-serif",
+            fontWeight: 400,
           }}
         >
           Precision engineering simulation for Forging &amp; Lathe operations —
-          powered by AI and real material science databases.
+          optimized by advanced material science and AI algorithms.
         </motion.p>
 
         {/* Stats Row */}
@@ -371,32 +376,32 @@ export default function HeroPage() {
           transition={{ duration: 0.5, delay: 0.32 }}
           style={{
             display: "flex",
-            gap: 32,
+            gap: 40,
             justifyContent: "center",
-            marginBottom: 40,
+            marginBottom: 48,
             flexWrap: "wrap",
           }}
         >
           {stats.map((s) => (
-            <div key={s.label} style={{ textAlign: "center" }}>
+            <div key={s.label} style={{ textAlign: "center", minWidth: 100 }}>
               <div
                 style={{
                   fontFamily: "Outfit, sans-serif",
                   fontWeight: 800,
-                  fontSize: 28,
-                  color: "#ff8c38",
-                  textShadow: "0 0 20px rgba(255,107,0,0.4)",
+                  fontSize: 32,
+                  color: "#ff6b00",
                 }}
               >
                 {s.value}
               </div>
               <div
                 style={{
-                  fontSize: 11,
+                  fontSize: 12,
                   color: "#64748b",
                   fontWeight: 600,
-                  letterSpacing: "0.05em",
+                  letterSpacing: "0.08em",
                   textTransform: "uppercase",
+                  marginTop: 2,
                 }}
               >
                 {s.label}
@@ -412,70 +417,70 @@ export default function HeroPage() {
           transition={{ duration: 0.5, delay: 0.38 }}
           style={{
             display: "flex",
-            gap: 14,
+            gap: 16,
             justifyContent: "center",
-            marginBottom: 60,
+            marginBottom: 64,
             flexWrap: "wrap",
           }}
         >
           <button
             onClick={() => navigate("/chat")}
             style={{
-              padding: "14px 40px",
-              borderRadius: 14,
+              padding: "16px 48px",
+              borderRadius: 16,
               border: "none",
               background: "linear-gradient(135deg, #ff6b00, #ff8c38)",
               color: "white",
               fontFamily: "Outfit, sans-serif",
               fontWeight: 700,
-              fontSize: 16,
+              fontSize: 17,
               cursor: "pointer",
-              boxShadow:
-                "0 0 32px rgba(255,107,0,0.45), 0 6px 20px rgba(255,107,0,0.3)",
-              transition: "all 0.25s",
-              position: "relative",
-              overflow: "hidden",
+              boxShadow: "0 10px 30px -5px rgba(255,107,0,0.4)",
+              transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translateY(-3px) scale(1.03)";
+              e.currentTarget.style.transform = "translateY(-4px)";
               e.currentTarget.style.boxShadow =
-                "0 0 48px rgba(255,107,0,0.6), 0 12px 30px rgba(255,107,0,0.4)";
+                "0 15px 40px -5px rgba(255,107,0,0.5)";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = "none";
               e.currentTarget.style.boxShadow =
-                "0 0 32px rgba(255,107,0,0.45), 0 6px 20px rgba(255,107,0,0.3)";
+                "0 10px 30px -5px rgba(255,107,0,0.4)";
             }}
           >
-            🚀 Start Analysis
+            🚀 Start Simulation
           </button>
           <button
             onClick={() => navigate("/chat")}
             style={{
-              padding: "14px 32px",
-              borderRadius: 14,
-              border: "1.5px solid rgba(255,107,0,0.35)",
-              background: "rgba(255,107,0,0.07)",
-              color: "#ff8c38",
+              padding: "16px 36px",
+              borderRadius: 16,
+              border: "1.5px solid #e2e8f0",
+              background: "white",
+              color: "#1e293b",
               fontFamily: "Outfit, sans-serif",
               fontWeight: 600,
-              fontSize: 15,
+              fontSize: 16,
               cursor: "pointer",
-              backdropFilter: "blur(10px)",
-              transition: "all 0.25s",
+              boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)",
+              transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = "rgba(255,107,0,0.14)";
-              e.currentTarget.style.borderColor = "rgba(255,107,0,0.6)";
+              e.currentTarget.style.background = "#f8fafc";
+              e.currentTarget.style.borderColor = "#cbd5e1";
               e.currentTarget.style.transform = "translateY(-2px)";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = "rgba(255,107,0,0.07)";
-              e.currentTarget.style.borderColor = "rgba(255,107,0,0.35)";
+              e.currentTarget.style.background = "white";
+              e.currentTarget.style.borderColor = "#e2e8f0";
               e.currentTarget.style.transform = "none";
             }}
           >
-            View Demo
+            How it works
           </button>
         </motion.div>
 
@@ -486,8 +491,8 @@ export default function HeroPage() {
           transition={{ duration: 0.6, delay: 0.5 }}
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
-            gap: 16,
+            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+            gap: 20,
           }}
         >
           {features.map((f, i) => (
@@ -497,64 +502,54 @@ export default function HeroPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.45, delay: 0.55 + i * 0.08 }}
               style={{
-                background: "rgba(255,255,255,0.035)",
-                border: "1px solid rgba(255,255,255,0.09)",
-                borderRadius: 16,
-                padding: "20px 18px",
+                background: "white",
+                border: "1px solid #e2e8f0",
+                borderRadius: 20,
+                padding: "24px 20px",
                 textAlign: "left",
-                backdropFilter: "blur(12px)",
-                transition:
-                  "border-color 0.25s, transform 0.25s, box-shadow 0.25s",
+                boxShadow: "0 4px 20px -5px rgba(0,0,0,0.05)",
+                transition: "all 0.3s ease",
                 cursor: "default",
                 position: "relative",
                 overflow: "hidden",
               }}
               onMouseEnter={(e) => {
                 const el = e.currentTarget;
-                el.style.borderColor = `${f.color}55`;
-                el.style.transform = "translateY(-4px)";
-                el.style.boxShadow = `0 12px 32px -8px ${f.color}25`;
+                el.style.borderColor = f.color;
+                el.style.transform = "translateY(-6px)";
+                el.style.boxShadow = `0 20px 30px -10px ${f.color}15`;
               }}
               onMouseLeave={(e) => {
                 const el = e.currentTarget;
-                el.style.borderColor = "rgba(255,255,255,0.09)";
+                el.style.borderColor = "#e2e8f0";
                 el.style.transform = "translateY(0)";
-                el.style.boxShadow = "none";
+                el.style.boxShadow = "0 4px 20px -5px rgba(0,0,0,0.05)";
               }}
             >
-              {/* Top accent */}
               <div
                 style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: 2,
-                  background: `linear-gradient(90deg, ${f.color}, transparent)`,
-                  borderRadius: "16px 16px 0 0",
-                }}
-              />
-              <div
-                style={{
-                  fontSize: 26,
-                  marginBottom: 12,
-                  filter: "drop-shadow(0 0 8px rgba(0,0,0,0.3))",
+                  fontSize: 32,
+                  marginBottom: 16,
+                  display: "inline-block",
+                  padding: "10px",
+                  background: `${f.color}10`,
+                  borderRadius: "12px",
                 }}
               >
                 {f.icon}
               </div>
               <div
                 style={{
-                  color: "white",
+                  color: "#0f172a",
                   fontWeight: 700,
-                  fontSize: 14,
+                  fontSize: 16,
                   fontFamily: "Outfit, sans-serif",
-                  marginBottom: 6,
+                  marginBottom: 8,
                 }}
               >
                 {f.title}
               </div>
-              <div style={{ color: "#64748b", fontSize: 12, lineHeight: 1.55 }}>
+              <div style={{ color: "#64748b", fontSize: 13, lineHeight: 1.6 }}>
                 {f.desc}
               </div>
             </motion.div>
@@ -567,27 +562,28 @@ export default function HeroPage() {
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.85 }}
           style={{
-            marginTop: 48,
+            marginTop: 56,
             display: "flex",
-            gap: 20,
+            gap: 24,
             justifyContent: "center",
             flexWrap: "wrap",
           }}
         >
-          {["Real Material Database", "Cost Estimation", "Safety Analysis"].map(
+          {["Real Material Data", "Cost Breakdown", "Safety First"].map(
             (tag) => (
               <span
                 key={tag}
                 style={{
-                  fontSize: 11,
-                  color: "#475569",
-                  fontWeight: 500,
+                  fontSize: 12,
+                  color: "#94a3b8",
+                  fontWeight: 600,
                   display: "flex",
                   alignItems: "center",
-                  gap: 5,
+                  gap: 6,
+                  letterSpacing: "0.02em",
                 }}
               >
-                <span style={{ color: "#22c55e", fontSize: 13 }}>✓</span> {tag}
+                <span style={{ color: "#22c55e", fontSize: 14 }}>●</span> {tag}
               </span>
             ),
           )}
@@ -596,12 +592,16 @@ export default function HeroPage() {
 
       <style>{`
         @keyframes auroraMove {
-          0% { transform: translate(0, 0) scale(1); }
-          100% { transform: translate(40px, -30px) scale(1.1); }
+          0% { transform: translate(0, 0) rotate(0deg) scale(1); }
+          50% { transform: translate(60px, -40px) rotate(5deg) scale(1.1); }
+          100% { transform: translate(-20px, 20px) rotate(-5deg) scale(0.95); }
         }
         @keyframes pulse {
           0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.7; transform: scale(0.85); }
+          50% { opacity: 0.6; transform: scale(0.8); }
+        }
+        * {
+          transition: background-color 0.3s ease, border-color 0.3s ease;
         }
       `}</style>
     </div>
