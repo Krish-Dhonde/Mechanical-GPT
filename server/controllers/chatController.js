@@ -4,7 +4,10 @@ import { getMaterialProperties } from "../services/materialEngine.js";
 import { forgingSimulation } from "../services/forgingEngine.js";
 import { costEstimation } from "../services/costEngine.js";
 import { safetyCheck } from "../services/safetyEngine.js";
-import { compareMaterials } from "../services/optimizationEngine.js";
+import {
+  compareMaterials,
+  compareMaterialsLathe,
+} from "../services/optimizationEngine.js";
 import {
   generateAIResponse,
   generateChatResponse,
@@ -70,9 +73,7 @@ export const handleChat = async (req, res) => {
     } = req.body;
 
     // ── 🔀 PURE CHAT MODE ──────────────────────────────────────────────────
-    // If no operation type is set, just have a conversation with the AI
     if (!operationType) {
-      // Fetch conversation history for context
       const existingChat = await Chat.findOne({ sessionId });
       const history = existingChat?.messages || [];
 
@@ -94,15 +95,10 @@ export const handleChat = async (req, res) => {
         { new: true, upsert: true },
       );
 
-      return res.json({
-        status: "chat",
-        aiExplanation: aiReply,
-      });
+      return res.json({ status: "chat", aiExplanation: aiReply });
     }
 
-    // ── 1️⃣ IMAGE DIMENSION EXTRACTION (before simulation) ──────────────────
-    // Extract values from image if provided, then merge with user inputs
-    // User-provided values always take priority over image-extracted values
+    // ── 1️⃣ IMAGE DIMENSION EXTRACTION ───────────────────────────────────────
     let imageExtractedValues = {};
     if (image) {
       imageExtractedValues = await extractDimensionsFromImage(
@@ -123,7 +119,6 @@ export const handleChat = async (req, res) => {
     };
 
     // ── 2️⃣ FETCH MATERIAL PROPERTIES ───────────────────────────────────────
-    // Use merged material or default to Steel if nothing specified
     const materialName = mergedInputs.material || "Steel";
     const materialProps = await getMaterialProperties(
       materialName,
@@ -135,6 +130,7 @@ export const handleChat = async (req, res) => {
     if (
       operationType === "Forging" &&
       mergedInputs.temperature &&
+      materialProps.recommendedForgingTemp &&
       (mergedInputs.temperature < materialProps.recommendedForgingTemp.min ||
         mergedInputs.temperature > materialProps.recommendedForgingTemp.max)
     ) {
@@ -186,7 +182,7 @@ export const handleChat = async (req, res) => {
       simulation.force || simulation.cuttingForce,
     );
 
-    // ── 7️⃣ MATERIAL COMPARISON ──────────────────────────────────────────────
+    // ── 7️⃣ MATERIAL COMPARISON (ALL operations) ─────────────────────────────
     let comparisons = [];
     if (operationType === "Forging") {
       comparisons = await compareMaterials({
@@ -195,6 +191,20 @@ export const handleChat = async (req, res) => {
         temperature: mergedInputs.temperature || 25,
         selectedMaterial: materialName,
       });
+    } else if (operationType === "Lathe") {
+      comparisons = await compareMaterialsLathe({
+        cuttingSpeed: mergedInputs.cuttingSpeed || 80,
+        feed: mergedInputs.feed || 0.2,
+        depthOfCut: mergedInputs.depthOfCut || 1,
+        workpieceDiameter: mergedInputs.workpieceDiameter || 50,
+        length: mergedInputs.length || 100,
+        passCount: mergedInputs.passCount || 1,
+        taperAngle: mergedInputs.taperAngle || 0,
+        threadPitch: mergedInputs.threadPitch || 1,
+        drillDiameter: mergedInputs.drillDiameter || 20,
+        holeDepth: mergedInputs.holeDepth || mergedInputs.length || 50,
+        subOperation,
+      });
     }
 
     // ── 8️⃣ AI EXPLANATION ───────────────────────────────────────────────────
@@ -202,7 +212,6 @@ export const handleChat = async (req, res) => {
     const isAlreadyBestFit =
       bestFitMaterial && bestFitMaterial.material === materialName;
 
-    // Build image note if values were extracted
     const imageNote =
       Object.keys(imageExtractedValues).length > 0
         ? `\nImage Analysis: Detected values from uploaded image — ${JSON.stringify(imageExtractedValues)}. User inputs took priority where both were available.`
@@ -229,8 +238,8 @@ ${JSON.stringify(simulation, null, 2)}
 Cost Analysis:
 ${JSON.stringify(cost, null, 2)}
 
-Material Comparison:
-${JSON.stringify(comparisons, null, 2)}
+Material Comparison (top 3):
+${JSON.stringify(comparisons.slice(0, 3), null, 2)}
 
 Best Fit Material: ${bestFitMaterial ? bestFitMaterial.material : "N/A"}
 ${isAlreadyBestFit ? "Note: The user has already chosen the best-fit material — acknowledge this positively." : bestFitMaterial ? `Note: The best-fit material is ${bestFitMaterial.material}, not the user's choice of ${materialName}. Mention this recommendation diplomatically.` : ""}
@@ -242,14 +251,13 @@ Instructions:
 1. Greet and briefly summarize the operation and key results.
 2. Discuss machining/forging time, RPM, feed rate, and any drilling-specific metrics (thrust force, torque) where applicable.
 3. Interpret costs and safety conversationally.
-4. Comment on the material choice and best-fit recommendation.
+4. Comment on the material choice and best-fit recommendation from the comparison table.
 5. Suggest a best course of action.
 Use first person: "I've calculated...", "You should notice...".
 `,
       },
     ];
 
-    // Also send image for additional AI commentary if present
     if (image) {
       aiMessages.push({
         role: "user",
@@ -265,23 +273,7 @@ Use first person: "I've calculated...", "You should notice...".
 
     const aiExplanation = await generateAIResponse(aiMessages);
 
-    // ── 9️⃣ SAVE CHAT HISTORY ─────────────────────────────────────────────────
-    await Chat.findOneAndUpdate(
-      { sessionId },
-      {
-        $push: {
-          messages: [
-            { role: "user", content: userPrompt || "" },
-            { role: "assistant", content: aiExplanation },
-          ],
-        },
-        operationType,
-        subOperation,
-      },
-      { new: true, upsert: true },
-    );
-
-    // ── 🔟 RESPONSE ───────────────────────────────────────────────────────────
+    // ── 9️⃣ BUILD RESPONSE + SAVE ─────────────────────────────────────────────
     const selectedMaterialData = {
       name: materialProps.name,
       density: materialProps.density,
@@ -293,38 +285,53 @@ Use first person: "I've calculated...", "You should notice...".
       maxSafeTemperature: materialProps.maxSafeTemperature,
     };
 
-    res.json({
+    const responsePayload = {
       status: "success",
       operationType,
       subOperation,
-
-      // Include image extraction info so frontend knows what was auto-filled
       imageExtractedValues:
         Object.keys(imageExtractedValues).length > 0
           ? imageExtractedValues
           : null,
-
       selectedMaterialAnalysis: {
         numericalResults: simulation,
         costAnalysis: cost,
         safetyWarnings: warnings,
       },
-
       selectedMaterialData,
       bestFitMaterial: bestFitMaterial
         ? {
             material: bestFitMaterial.material,
             cost: bestFitMaterial.cost,
             force: bestFitMaterial.force,
+            machiningTime: bestFitMaterial.machiningTime,
             yieldStrength: bestFitMaterial.yieldStrength,
             isAlreadyChosen: isAlreadyBestFit,
           }
         : null,
-
       machineRecommendation: machineData,
       materialComparison: comparisons,
       aiExplanation,
-    });
+    };
+
+    // Persist result so it is restored when the chat is reopened
+    await Chat.findOneAndUpdate(
+      { sessionId },
+      {
+        $push: {
+          messages: [
+            { role: "user", content: userPrompt || "" },
+            { role: "assistant", content: aiExplanation },
+          ],
+        },
+        operationType,
+        subOperation,
+        lastResult: responsePayload,
+      },
+      { new: true, upsert: true },
+    );
+
+    res.json(responsePayload);
   } catch (error) {
     console.error("Chat Controller Error:", error);
     res.status(500).json({

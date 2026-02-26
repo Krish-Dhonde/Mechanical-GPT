@@ -40,8 +40,9 @@ export const useChatStore = create((set, get) => ({
         operationType: chat.operationType || "",
         subOperation: chat.subOperation || "",
         messages: chat.messages || [],
+        // Restore the last result so the results panel re-renders
+        result: chat.lastResult || null,
         loading: false,
-        result: null, // Results are usually re-calculated or could be stored, for now we clear or reload
       });
     } catch (err) {
       console.error("loadChat error:", err);
