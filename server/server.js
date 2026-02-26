@@ -9,20 +9,35 @@ connectDB();
 
 const app = express();
 
-const allowedOrigins = [
-  "https://mechanical-gpt-frontend.vercel.app",
-];
+const allowedOrigins = ["https://mechanical-gpt-frontend.vercel.app"];
 
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
-  credentials: true,
-}));
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // Allow requests with no origin (Postman, server-to-server)
+      if (!origin) return callback(null, true);
+
+      // Allow main production URL
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      // Allow all Vercel preview deployments
+      if (origin.endsWith(".vercel.app")) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("Not allowed by CORS"));
+    },
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+  }),
+);
+
+// Handle preflight explicitly
+app.options("*", cors());
+
 app.use(express.json({ limit: "10mb" }));
 
 app.get("/", (req, res) => {
