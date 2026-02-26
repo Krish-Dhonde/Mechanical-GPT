@@ -252,6 +252,33 @@ const inputConfig = {
       placeholder: "e.g. 5",
     },
   ],
+  Drilling: [
+    materialField,
+    {
+      name: "drillDiameter",
+      label: "Drill Ø (mm)",
+      type: "number",
+      placeholder: "e.g. 10",
+    },
+    {
+      name: "holeDepth",
+      label: "Hole Depth (mm)",
+      type: "number",
+      placeholder: "e.g. 50",
+    },
+    {
+      name: "cuttingSpeed",
+      label: "Cutting Speed (m/min)",
+      type: "number",
+      placeholder: "e.g. 25",
+    },
+    {
+      name: "feed",
+      label: "Feed (mm/rev)",
+      type: "number",
+      placeholder: "e.g. 0.1",
+    },
+  ],
 };
 
 export default function DynamicInputs() {

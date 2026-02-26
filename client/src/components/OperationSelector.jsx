@@ -2,7 +2,7 @@ import { useChatStore } from "../store/useChatStore";
 
 const operationsConfig = {
   Forging: ["Open Die Forging", "Closed Die Forging", "Upset Forging"],
-  Lathe: ["Turning", "Facing", "Taper Turning", "Thread Cutting"],
+  Lathe: ["Turning", "Facing", "Taper Turning", "Thread Cutting", "Drilling"],
 };
 
 const opIcons = {

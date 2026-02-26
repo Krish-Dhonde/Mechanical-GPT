@@ -123,11 +123,9 @@ export default function ChatWindow() {
 
   const isValidSubmission = () => {
     if (!operationType || !subOperation) return false;
-    const requiredFields = Object.keys(inputs).filter((k) => k !== "image");
-    if (requiredFields.length === 0) return false;
-    return requiredFields.every(
-      (k) => inputs[k] !== "" && inputs[k] !== null && inputs[k] !== undefined,
-    );
+    // We only require a prompt or an image to start a chat.
+    // Inputs are optional now.
+    return prompt.trim() !== "" || !!inputs.image;
   };
 
   const [status, setStatus] = useState("Planning...");
@@ -286,21 +284,6 @@ export default function ChatWindow() {
             <span>⚠</span> Select an operation and sub-operation to begin.
           </p>
         )}
-        {operationType && subOperation && !isValidSubmission() && (
-          <p
-            style={{
-              fontSize: 12,
-              color: "#f59e0b",
-              margin: "0 0 6px",
-              display: "flex",
-              alignItems: "center",
-              gap: 5,
-            }}
-          >
-            <span>⚠</span> Fill all required input fields above to enable
-            analysis.
-          </p>
-        )}
       </div>
 
       {/* ── Input Area ── */}
@@ -349,7 +332,7 @@ export default function ChatWindow() {
 
         <button
           onClick={handleSend}
-          disabled={!isValidSubmission() || loading || !prompt.trim()}
+          disabled={!isValidSubmission() || loading}
           style={{
             padding: "10px 20px",
             borderRadius: 10,
@@ -357,18 +340,12 @@ export default function ChatWindow() {
             fontFamily: "Outfit, sans-serif",
             fontWeight: 600,
             fontSize: 14,
-            cursor:
-              isValidSubmission() && !loading && prompt.trim()
-                ? "pointer"
-                : "not-allowed",
+            cursor: isValidSubmission() && !loading ? "pointer" : "not-allowed",
             background:
-              isValidSubmission() && !loading && prompt.trim()
+              isValidSubmission() && !loading
                 ? "linear-gradient(135deg, #ff6b00, #ff8c38)"
                 : "#e2e8f0",
-            color:
-              isValidSubmission() && !loading && prompt.trim()
-                ? "white"
-                : "#94a3b8",
+            color: isValidSubmission() && !loading ? "white" : "#94a3b8",
             transition: "all 0.2s",
             display: "flex",
             alignItems: "center",

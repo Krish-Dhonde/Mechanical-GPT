@@ -131,6 +131,58 @@ function generateFallbackResponse(messages) {
   }
 }
 
+export const extractParameters = async (
+  image,
+  prompt,
+  operationType,
+  subOperation,
+) => {
+  try {
+    if (!openai) {
+      openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+      });
+    }
+
+    const messages = [
+      {
+        role: "system",
+        content: `You are an expert mechanical process data extractor. Extract numerical parameters for the given operation: ${operationType} - ${subOperation}. 
+Return ONLY a valid JSON object. Do not include markdown formatting or backticks. Keys should match variable names like diameter, length, temperature, cuttingSpeed, depthOfCut, feed, passCount, drillDiameter, holeDepth. Include material if mentioned.`,
+      },
+      {
+        role: "user",
+        content: [],
+      },
+    ];
+
+    if (prompt) {
+      messages[1].content.push({
+        type: "text",
+        text: `User prompt: ${prompt}`,
+      });
+    }
+    if (image) {
+      messages[1].content.push({
+        type: "image_url",
+        image_url: { url: image },
+      });
+    }
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages,
+      temperature: 0.2, // low temperature for extraction
+      response_format: { type: "json_object" },
+    });
+
+    return JSON.parse(response.choices[0].message.content);
+  } catch (err) {
+    console.error("Parameter extraction error:", err);
+    return {};
+  }
+};
+
 export const generateAIResponse = async (messages) => {
   try {
     if (!openai) {
@@ -138,21 +190,39 @@ export const generateAIResponse = async (messages) => {
         apiKey: process.env.OPENAI_API_KEY,
       });
     }
+
+    // Append JSON instruction to the system prompt if not present
+    const sysMsg = messages.find((m) => m.role === "system");
+    if (sysMsg) {
+      sysMsg.content += ` IMPORTANT: You must return a valid JSON object with EXACTLY two strings: "chatResponse" (a direct conversational reply answering the user query and noting extracted values/missing values) and "panelInsights" (a technical summary highlighting calculations, comparisons, process impacts, and safety).`;
+    }
+
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages,
       temperature: 0.7,
+      response_format: { type: "json_object" },
     });
 
-    return response.choices[0].message.content;
+    const data = JSON.parse(response.choices[0].message.content);
+    return data;
   } catch (error) {
     console.error("AI Service Error:", error.message || error);
 
     // Try to build a meaningful contextual response from the data
     const fallback = generateFallbackResponse(messages);
-    if (fallback) return fallback;
+    if (fallback)
+      return {
+        chatResponse: fallback,
+        panelInsights:
+          "Generated from fallback: Please review the numerical results, cost breakdown, and safety warnings.",
+      };
 
     // Last resort generic message
-    return "The analysis is complete. Please review the numerical results, cost breakdown, and safety warnings shown in the result panel on the right.";
+    return {
+      chatResponse:
+        "The analysis is complete. Please review the numerical results, cost breakdown, and safety warnings shown in the result panel on the right.",
+      panelInsights: "",
+    };
   }
 };

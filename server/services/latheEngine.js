@@ -28,6 +28,9 @@ export const latheSimulation = ({
     // Taper adds a correction factor based on angle
     const taperFactor = 1 + Math.tan((taperAngle * Math.PI) / 180) * 0.15;
     machiningTime = ((length * passCount) / (feed * rpm)) * taperFactor;
+  } else if (subOperation === "Drilling") {
+    // Drilling time = Hole Depth / (Feed * RPM)
+    machiningTime = length / (feed * rpm);
   } else {
     // Turning and Facing
     machiningTime = (length * passCount) / (feed * rpm);
