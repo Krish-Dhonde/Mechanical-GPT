@@ -1,11 +1,14 @@
 export const mechanicalGuard = (req, res, next) => {
   const { operationType } = req.body;
 
-  const supportedOperations = ["Forging"]; // Add "Lathe" when ready
+  // Allow requests with no operationType — these are pure AI chat queries
+  if (!operationType) return next();
 
-  if (!operationType || !supportedOperations.includes(operationType)) {
+  const supportedOperations = ["Forging", "Lathe"];
+
+  if (!supportedOperations.includes(operationType)) {
     return res.status(400).json({
-      message: `Operation type required. Supported: ${supportedOperations.join(", ")}`,
+      message: `Unsupported operation type. Supported: ${supportedOperations.join(", ")}`,
     });
   }
 

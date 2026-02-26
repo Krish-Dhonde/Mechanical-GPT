@@ -5,7 +5,11 @@ import { forgingSimulation } from "../services/forgingEngine.js";
 import { costEstimation } from "../services/costEngine.js";
 import { safetyCheck } from "../services/safetyEngine.js";
 import { compareMaterials } from "../services/optimizationEngine.js";
-import { generateAIResponse } from "../services/aiService.js";
+import {
+  generateAIResponse,
+  generateChatResponse,
+  extractDimensionsFromImage,
+} from "../services/aiService.js";
 import { machineRecommendation } from "../services/machineEngine.js";
 import { latheSimulation } from "../services/latheEngine.js";
 
@@ -61,74 +65,106 @@ export const handleChat = async (req, res) => {
       operationType,
       subOperation,
       userPrompt,
-      inputs,
+      inputs = {},
       image,
     } = req.body;
 
-    // ── 1️⃣ Validate Inputs ──
-    if (operationType === "Forging") {
-      if (!inputs.diameter || !inputs.length || !inputs.material) {
-        return res.status(400).json({
-          message:
-            "Missing required inputs for Forging: diameter, length, material.",
-        });
-      }
-    } else if (operationType === "Lathe") {
-      if (!inputs.cuttingSpeed || !inputs.depthOfCut || !inputs.material) {
-        return res.status(400).json({
-          message:
-            "Missing required inputs for Lathe: cuttingSpeed, depthOfCut, material.",
-        });
-      }
-      // Thread Cutting uses threadPitch as its feed rate
-      if (subOperation !== "Thread Cutting" && !inputs.feed) {
-        return res.status(400).json({
-          message: "Missing feed rate for Lathe operation.",
-        });
-      }
-    } else {
-      return res.status(400).json({ message: "Operation type not supported." });
+    // ── 🔀 PURE CHAT MODE ──────────────────────────────────────────────────
+    // If no operation type is set, just have a conversation with the AI
+    if (!operationType) {
+      // Fetch conversation history for context
+      const existingChat = await Chat.findOne({ sessionId });
+      const history = existingChat?.messages || [];
+
+      const aiReply = await generateChatResponse(
+        userPrompt || "Hello! How can I help you with mechanical engineering?",
+        history,
+      );
+
+      await Chat.findOneAndUpdate(
+        { sessionId },
+        {
+          $push: {
+            messages: [
+              { role: "user", content: userPrompt },
+              { role: "assistant", content: aiReply },
+            ],
+          },
+        },
+        { new: true, upsert: true },
+      );
+
+      return res.json({
+        status: "chat",
+        aiExplanation: aiReply,
+      });
     }
 
-    // ── 2️⃣ Fetch Material Properties ──
+    // ── 1️⃣ IMAGE DIMENSION EXTRACTION (before simulation) ──────────────────
+    // Extract values from image if provided, then merge with user inputs
+    // User-provided values always take priority over image-extracted values
+    let imageExtractedValues = {};
+    if (image) {
+      imageExtractedValues = await extractDimensionsFromImage(
+        image,
+        operationType,
+        subOperation,
+      );
+    }
+
+    // Merge: imageExtracted as base, user inputs override
+    const mergedInputs = {
+      ...imageExtractedValues,
+      ...Object.fromEntries(
+        Object.entries(inputs).filter(
+          ([, v]) => v !== "" && v !== null && v !== undefined,
+        ),
+      ),
+    };
+
+    // ── 2️⃣ FETCH MATERIAL PROPERTIES ───────────────────────────────────────
+    // Use merged material or default to Steel if nothing specified
+    const materialName = mergedInputs.material || "Steel";
     const materialProps = await getMaterialProperties(
-      inputs.material,
-      inputs.temperature || 25,
+      materialName,
+      mergedInputs.temperature || 25,
     );
 
     const warnings = [];
 
     if (
       operationType === "Forging" &&
-      inputs.temperature &&
-      (inputs.temperature < materialProps.recommendedForgingTemp.min ||
-        inputs.temperature > materialProps.recommendedForgingTemp.max)
+      mergedInputs.temperature &&
+      (mergedInputs.temperature < materialProps.recommendedForgingTemp.min ||
+        mergedInputs.temperature > materialProps.recommendedForgingTemp.max)
     ) {
       warnings.push("Temperature outside recommended forging range.");
     }
 
-    // ── 3️⃣ Run Simulation ──
+    // ── 3️⃣ RUN SIMULATION ──────────────────────────────────────────────────
     let simulation = {};
     if (operationType === "Forging") {
-      const diameter_m = mmToMeter(inputs.diameter);
-      const length_m = mmToMeter(inputs.length);
+      const diameter_m = mmToMeter(mergedInputs.diameter || 50);
+      const length_m = mmToMeter(mergedInputs.length || 100);
       simulation = forgingSimulation({ diameter_m, length_m, materialProps });
     } else if (operationType === "Lathe") {
       simulation = latheSimulation({
-        cuttingSpeed: inputs.cuttingSpeed,
-        feed: inputs.feed || inputs.threadPitch || 1,
-        depthOfCut: inputs.depthOfCut,
+        cuttingSpeed: mergedInputs.cuttingSpeed || 80,
+        feed: mergedInputs.feed || 0.2,
+        depthOfCut: mergedInputs.depthOfCut || 1,
         materialProps,
-        workpieceDiameter: inputs.workpieceDiameter || 50,
-        length: inputs.length || 100,
-        passCount: inputs.passCount || 1,
-        taperAngle: inputs.taperAngle || 0,
-        threadPitch: inputs.threadPitch || 1,
+        workpieceDiameter: mergedInputs.workpieceDiameter || 50,
+        length: mergedInputs.length || 100,
+        passCount: mergedInputs.passCount || 1,
+        taperAngle: mergedInputs.taperAngle || 0,
+        threadPitch: mergedInputs.threadPitch || 1,
+        drillDiameter: mergedInputs.drillDiameter || 20,
+        holeDepth: mergedInputs.holeDepth || mergedInputs.length || 50,
         subOperation,
       });
     }
 
-    // ── 4️⃣ Cost Calculation ──
+    // ── 4️⃣ COST CALCULATION ────────────────────────────────────────────────
     const weight = simulation.weight || 0;
     const cost = costEstimation({
       weight,
@@ -137,49 +173,55 @@ export const handleChat = async (req, res) => {
       time: simulation.machiningTime || simulation.forgingCycleTime || 0,
     });
 
-    // ── 5️⃣ Safety Check ──
+    // ── 5️⃣ SAFETY CHECK ────────────────────────────────────────────────────
     const safetyWarnings = safetyCheck({
       force: simulation.force || simulation.cuttingForce,
-      temperature: inputs.temperature || 25,
+      temperature: mergedInputs.temperature || 25,
       material: materialProps,
     });
     warnings.push(...safetyWarnings);
 
-    // ── 6️⃣ Machine Intelligence ──
+    // ── 6️⃣ MACHINE INTELLIGENCE ─────────────────────────────────────────────
     const machineData = machineRecommendation(
       simulation.force || simulation.cuttingForce,
     );
 
-    // ── 7️⃣ Material Comparison ──
+    // ── 7️⃣ MATERIAL COMPARISON ──────────────────────────────────────────────
     let comparisons = [];
     if (operationType === "Forging") {
       comparisons = await compareMaterials({
-        diameter_m: mmToMeter(inputs.diameter),
-        length_m: mmToMeter(inputs.length),
-        temperature: inputs.temperature || 25,
-        selectedMaterial: inputs.material,
+        diameter_m: mmToMeter(mergedInputs.diameter || 50),
+        length_m: mmToMeter(mergedInputs.length || 100),
+        temperature: mergedInputs.temperature || 25,
+        selectedMaterial: materialName,
       });
     }
-    // Lathe: no cross-material comparison (machining time is independent of material weight)
 
-    // ── 8️⃣ AI Explanation ──
+    // ── 8️⃣ AI EXPLANATION ───────────────────────────────────────────────────
     const bestFitMaterial = comparisons.length > 0 ? comparisons[0] : null;
     const isAlreadyBestFit =
-      bestFitMaterial && bestFitMaterial.material === inputs.material;
+      bestFitMaterial && bestFitMaterial.material === materialName;
+
+    // Build image note if values were extracted
+    const imageNote =
+      Object.keys(imageExtractedValues).length > 0
+        ? `\nImage Analysis: Detected values from uploaded image — ${JSON.stringify(imageExtractedValues)}. User inputs took priority where both were available.`
+        : "";
 
     const aiMessages = [
       {
         role: "system",
         content:
-          "You are Mechanical GPT, a friendly industrial mechanical expert. Explain technical results in a conversational yet professional manner. Talk directly to the user about what is shown in the result panel. Highlight calculated time, costs, and safety. Be encouraging and insightful. Keep responses to 3-5 clear sentences.",
+          "You are Mechanical GPT, a friendly industrial mechanical expert. Explain technical results in a conversational yet professional manner. Talk directly to the user about what is shown in the result panel. Highlight calculated time, costs, safety, RPM, feed rate, and any drilling-specific metrics. Be encouraging and insightful. Keep responses to 4-6 clear sentences. Use markdown formatting with bold for key numbers.",
       },
       {
         role: "user",
         content: `
 Operation: ${operationType} — ${subOperation}
-Selected Material: ${inputs.material}
+Selected Material: ${materialName}
+${imageNote}
 
-User Question: ${userPrompt}
+User Question: ${userPrompt || "Please explain the results."}
 
 Numerical Results:
 ${JSON.stringify(simulation, null, 2)}
@@ -191,14 +233,14 @@ Material Comparison:
 ${JSON.stringify(comparisons, null, 2)}
 
 Best Fit Material: ${bestFitMaterial ? bestFitMaterial.material : "N/A"}
-${isAlreadyBestFit ? "Note: The user has already chosen the best-fit material — acknowledge this positively." : bestFitMaterial ? `Note: The best-fit material is ${bestFitMaterial.material}, not the user's choice of ${inputs.material}. Mention this recommendation diplomatically.` : ""}
+${isAlreadyBestFit ? "Note: The user has already chosen the best-fit material — acknowledge this positively." : bestFitMaterial ? `Note: The best-fit material is ${bestFitMaterial.material}, not the user's choice of ${materialName}. Mention this recommendation diplomatically.` : ""}
 
 Safety Warnings:
 ${warnings.length > 0 ? warnings.join(", ") : "None"}
 
 Instructions:
-1. Greet and briefly summarize the operation.
-2. Discuss machining/forging time and process impact.
+1. Greet and briefly summarize the operation and key results.
+2. Discuss machining/forging time, RPM, feed rate, and any drilling-specific metrics (thrust force, torque) where applicable.
 3. Interpret costs and safety conversationally.
 4. Comment on the material choice and best-fit recommendation.
 5. Suggest a best course of action.
@@ -207,13 +249,14 @@ Use first person: "I've calculated...", "You should notice...".
       },
     ];
 
+    // Also send image for additional AI commentary if present
     if (image) {
       aiMessages.push({
         role: "user",
         content: [
           {
             type: "text",
-            text: "Analyze this mechanical drawing/image and note any relevant dimensions.",
+            text: "This is the mechanical drawing or image the user uploaded. Reference it in your explanation if relevant.",
           },
           { type: "image_url", image_url: { url: image } },
         ],
@@ -222,13 +265,13 @@ Use first person: "I've calculated...", "You should notice...".
 
     const aiExplanation = await generateAIResponse(aiMessages);
 
-    // ── 9️⃣ Save Chat History ──
+    // ── 9️⃣ SAVE CHAT HISTORY ─────────────────────────────────────────────────
     await Chat.findOneAndUpdate(
       { sessionId },
       {
         $push: {
           messages: [
-            { role: "user", content: userPrompt },
+            { role: "user", content: userPrompt || "" },
             { role: "assistant", content: aiExplanation },
           ],
         },
@@ -238,7 +281,7 @@ Use first person: "I've calculated...", "You should notice...".
       { new: true, upsert: true },
     );
 
-    // Build clean material data for display
+    // ── 🔟 RESPONSE ───────────────────────────────────────────────────────────
     const selectedMaterialData = {
       name: materialProps.name,
       density: materialProps.density,
@@ -250,11 +293,16 @@ Use first person: "I've calculated...", "You should notice...".
       maxSafeTemperature: materialProps.maxSafeTemperature,
     };
 
-    // ── 🔟 Response ──
     res.json({
       status: "success",
       operationType,
       subOperation,
+
+      // Include image extraction info so frontend knows what was auto-filled
+      imageExtractedValues:
+        Object.keys(imageExtractedValues).length > 0
+          ? imageExtractedValues
+          : null,
 
       selectedMaterialAnalysis: {
         numericalResults: simulation,

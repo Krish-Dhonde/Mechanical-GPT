@@ -97,7 +97,6 @@ export default function ResultPanel() {
     selectedMaterialAnalysis;
 
   const isLathe = operationType === "Lathe";
-  const isDrilling = subOperation === "Drilling";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -122,19 +121,14 @@ export default function ResultPanel() {
             gap: 10,
           }}
         >
-          {/* Force / Thrust Force */}
           <MetricCard
-            icon={isDrilling ? "🔩" : "⚡"}
-            label={isDrilling ? "Thrust Force (N)" : "Cutting Force (N)"}
+            icon="⚡"
+            label="Force (N)"
             value={safeNum(
-              numericalResults.thrustForce ??
-                numericalResults.force ??
-                numericalResults.cuttingForce,
+              numericalResults.force ?? numericalResults.cuttingForce,
               (v) => Math.round(v).toLocaleString(),
             )}
           />
-
-          {/* Weight — Forging only */}
           {!isLathe && (
             <MetricCard
               icon="⚖️"
@@ -151,24 +145,12 @@ export default function ResultPanel() {
               )}
             />
           )}
-
-          {/* Time */}
-          {isDrilling ? (
-            <MetricCard
-              icon="⏱"
-              label="Drilling Time (min)"
-              value={safeNum(
-                numericalResults.drillingTime ?? numericalResults.machiningTime,
-                (v) => v.toFixed(4),
-              )}
-              accent
-            />
-          ) : isLathe ? (
+          {isLathe ? (
             <MetricCard
               icon="⏱"
               label="Machining Time (min)"
               value={safeNum(numericalResults.machiningTime, (v) =>
-                v.toFixed(3),
+                v.toFixed(2),
               )}
               accent
             />
@@ -182,57 +164,6 @@ export default function ResultPanel() {
               accent
             />
           )}
-
-          {/* RPM — all Lathe ops */}
-          {isLathe && numericalResults.rpm != null && (
-            <MetricCard
-              icon="🔄"
-              label="Spindle RPM"
-              value={safeNum(numericalResults.rpm, (v) =>
-                Math.round(v).toLocaleString(),
-              )}
-            />
-          )}
-
-          {/* Feed Rate — all Lathe ops */}
-          {isLathe && numericalResults.feedRate != null && (
-            <MetricCard
-              icon="➡️"
-              label="Feed Rate (mm/min)"
-              value={safeNum(numericalResults.feedRate, (v) => v.toFixed(2))}
-            />
-          )}
-
-          {/* Depth of Cut */}
-          {isLathe && numericalResults.depthOfCut != null && (
-            <MetricCard
-              icon="📐"
-              label={isDrilling ? "Drill Radius (mm)" : "Depth of Cut (mm)"}
-              value={safeNum(numericalResults.depthOfCut, (v) => v.toFixed(2))}
-            />
-          )}
-
-          {/* Torque — Drilling only */}
-          {isDrilling && numericalResults.torque != null && (
-            <MetricCard
-              icon="🌀"
-              label="Torque (Nm)"
-              value={safeNum(numericalResults.torque, (v) => v.toFixed(4))}
-            />
-          )}
-
-          {/* MRR — Drilling */}
-          {isLathe && numericalResults.mrr != null && (
-            <MetricCard
-              icon="♻️"
-              label="MRR (mm³/min)"
-              value={safeNum(numericalResults.mrr, (v) =>
-                Math.round(v).toLocaleString(),
-              )}
-            />
-          )}
-
-          {/* Energy */}
           <MetricCard
             icon="🔋"
             label="Energy (J)"
@@ -240,13 +171,54 @@ export default function ResultPanel() {
               Math.round(v).toLocaleString(),
             )}
           />
-
-          {/* Power */}
+          {numericalResults.rpm != null && (
+            <MetricCard
+              icon="🔄"
+              label="Speed (RPM)"
+              value={safeNum(numericalResults.rpm, (v) =>
+                Math.round(v).toLocaleString(),
+              )}
+            />
+          )}
           {numericalResults.power != null && (
             <MetricCard
               icon="💡"
               label="Power (W)"
               value={safeNum(numericalResults.power, (v) => v.toFixed(1))}
+            />
+          )}
+          {numericalResults.feedRate != null && (
+            <MetricCard
+              icon="📍"
+              label="Feed Rate (mm/min)"
+              value={safeNum(numericalResults.feedRate, (v) =>
+                Math.round(v).toLocaleString(),
+              )}
+            />
+          )}
+          {numericalResults.thrustForce != null && (
+            <MetricCard
+              icon="⬇️"
+              label="Thrust Force (N)"
+              value={safeNum(numericalResults.thrustForce, (v) =>
+                Math.round(v).toLocaleString(),
+              )}
+            />
+          )}
+          {numericalResults.torque != null && (
+            <MetricCard
+              icon="🔧"
+              label="Torque (N·m)"
+              value={safeNum(numericalResults.torque, (v) => v.toFixed(3))}
+            />
+          )}
+          {numericalResults.effectiveDepthOfCut != null && (
+            <MetricCard
+              icon="↓"
+              label="Eff. Depth of Cut (mm)"
+              value={safeNum(numericalResults.effectiveDepthOfCut, (v) =>
+                v.toFixed(2),
+              )}
             />
           )}
         </div>
