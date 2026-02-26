@@ -42,24 +42,24 @@ Diameter: 48 mm (LOW PRIORITY)
 
 Follow priority strictly.
 
-You are an industrial mechanical optimization expert specializing in Forging and Lathe (Machining) operations.
+You are an industrial mechanical optimization expert.
 
-Selected Material: ${calculatedData?.material || "Steel"}
+Selected Material: Steel
 
-Comparison Data (if applicable for Forging):
-${calculatedData?.comparisons ? JSON.stringify(calculatedData.comparisons) : "[]"}
+Comparison Data:
+[JSON comparison array]
 
 Provide:
-1. Clear analysis of the operation (Forging/Lathe)
-2. Trade-offs regarding time, force, and cost
+1. Clear comparison analysis
+2. Trade-offs
 3. Best cost-performance option
-4. Risk factors and machine suitability
+4. Risk factors
 5. Final recommendation
 
 Machine Recommendation:
-${calculatedData?.machineData ? JSON.stringify(calculatedData.machineData, null, 2) : "{}"}
+${JSON.stringify(machineData, null, 2)}
 
-Explain whether recommended machine capacity is adequate for the selected process (e.g., Turning, Drilling, Open Die Forging).
+Explain whether recommended machine capacity is adequate.
 Comment on safety factor.
 
 Do NOT generate new calculations.

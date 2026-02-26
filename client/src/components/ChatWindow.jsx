@@ -54,6 +54,18 @@ const BotAvatar = () => (
   </div>
 );
 
+// Simple markdown-like renderer for bold text (**text**)
+function renderContent(text) {
+  if (!text) return null;
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={i}>{part.slice(2, -2)}</strong>;
+    }
+    return part;
+  });
+}
+
 export default function ChatWindow() {
   const {
     operationType,
@@ -75,12 +87,12 @@ export default function ChatWindow() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
+  const canSend = () => {
+    return operationType && subOperation && prompt.trim() && !loading;
+  };
+
   const handleSend = async () => {
-    if (!prompt.trim()) return;
-    if (!operationType || !subOperation) {
-      alert("Please select an operation and sub-operation first.");
-      return;
-    }
+    if (!canSend()) return;
 
     const currentPrompt = prompt;
     addMessage({ role: "user", content: currentPrompt });
@@ -99,9 +111,12 @@ export default function ChatWindow() {
 
       const data = response.data;
       addMessage({ role: "assistant", content: data.aiExplanation });
-      setResult(data);
 
-      // Update sidebar history after a successful message which saves the chat
+      // Only update result panel if we got simulation results
+      if (data.status === "success" && data.selectedMaterialAnalysis) {
+        setResult(data);
+      }
+
       useChatStore.getState().fetchChats();
     } catch (error) {
       console.error(error);
@@ -117,15 +132,8 @@ export default function ChatWindow() {
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      if (isValidSubmission()) handleSend();
+      if (canSend()) handleSend();
     }
-  };
-
-  const isValidSubmission = () => {
-    if (!operationType || !subOperation) return false;
-    // We only require a prompt or an image to start a chat.
-    // Inputs are optional now.
-    return prompt.trim() !== "" || !!inputs.image;
   };
 
   const [status, setStatus] = useState("Planning...");
@@ -202,7 +210,9 @@ export default function ChatWindow() {
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
             </svg>
             <p style={{ fontSize: 14, margin: 0 }}>
-              Select an operation and start your analysis
+              {operationType && subOperation
+                ? "Ask anything or fill inputs above for a full simulation"
+                : "Select an operation and start your analysis"}
             </p>
           </div>
         )}
@@ -225,7 +235,7 @@ export default function ChatWindow() {
                   : "chat-bubble-assistant"
               }
             >
-              {msg.content}
+              {renderContent(msg.content)}
               {msg.image && (
                 <div style={{ marginTop: 10 }}>
                   <img
@@ -284,6 +294,21 @@ export default function ChatWindow() {
             <span>⚠</span> Select an operation and sub-operation to begin.
           </p>
         )}
+        {operationType && subOperation && (
+          <p
+            style={{
+              fontSize: 12,
+              color: "#64748b",
+              margin: "0 0 6px",
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+            }}
+          >
+            <span>💡</span> You can ask questions or fill inputs above for full
+            simulation.
+          </p>
+        )}
       </div>
 
       {/* ── Input Area ── */}
@@ -314,7 +339,7 @@ export default function ChatWindow() {
           }}
           placeholder={
             operationType && subOperation
-              ? "Ask about your operation..."
+              ? "Ask about your operation or anything mechanical..."
               : "Select an operation first..."
           }
           value={prompt}
@@ -332,7 +357,7 @@ export default function ChatWindow() {
 
         <button
           onClick={handleSend}
-          disabled={!isValidSubmission() || loading}
+          disabled={!canSend()}
           style={{
             padding: "10px 20px",
             borderRadius: 10,
@@ -340,12 +365,11 @@ export default function ChatWindow() {
             fontFamily: "Outfit, sans-serif",
             fontWeight: 600,
             fontSize: 14,
-            cursor: isValidSubmission() && !loading ? "pointer" : "not-allowed",
-            background:
-              isValidSubmission() && !loading
-                ? "linear-gradient(135deg, #ff6b00, #ff8c38)"
-                : "#e2e8f0",
-            color: isValidSubmission() && !loading ? "white" : "#94a3b8",
+            cursor: canSend() ? "pointer" : "not-allowed",
+            background: canSend()
+              ? "linear-gradient(135deg, #ff6b00, #ff8c38)"
+              : "#e2e8f0",
+            color: canSend() ? "white" : "#94a3b8",
             transition: "all 0.2s",
             display: "flex",
             alignItems: "center",

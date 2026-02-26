@@ -256,7 +256,7 @@ const inputConfig = {
     materialField,
     {
       name: "drillDiameter",
-      label: "Drill Ø (mm)",
+      label: "Drill Diameter (mm)",
       type: "number",
       placeholder: "e.g. 10",
     },
@@ -264,7 +264,7 @@ const inputConfig = {
       name: "holeDepth",
       label: "Hole Depth (mm)",
       type: "number",
-      placeholder: "e.g. 50",
+      placeholder: "e.g. 30",
     },
     {
       name: "cuttingSpeed",
@@ -273,10 +273,22 @@ const inputConfig = {
       placeholder: "e.g. 25",
     },
     {
-      name: "feed",
-      label: "Feed (mm/rev)",
+      name: "drillFeed",
+      label: "Feed per Rev (mm/rev)",
       type: "number",
-      placeholder: "e.g. 0.1",
+      placeholder: "e.g. 0.2",
+    },
+    {
+      name: "workpieceDiameter",
+      label: "Workpiece Ø (mm)",
+      type: "number",
+      placeholder: "e.g. 60",
+    },
+    {
+      name: "passCount",
+      label: "No. of Holes",
+      type: "number",
+      placeholder: "e.g. 1",
     },
   ],
 };
