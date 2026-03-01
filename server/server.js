@@ -6,7 +6,7 @@ import cors from "cors";
 import { connectDB } from "./config/db.js";
 import chatRoutes from "./routes/chatRoutes.js";
 connectDB();
-import { generateGeminiResponse } from "./services/geminiService.js";
+import { generateGeminiResponse } from "./services/geminiServices.js";
 
 const app = express();
 
