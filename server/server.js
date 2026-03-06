@@ -6,7 +6,6 @@ import cors from "cors";
 import { connectDB } from "./config/db.js";
 import chatRoutes from "./routes/chatRoutes.js";
 connectDB();
-import { generateGeminiResponse } from "./services/geminiServices.js";
 
 const app = express();
 
@@ -49,17 +48,6 @@ app.get("/health", (req, res) => {
 
 app.get("/", (req, res) => {
   res.status(200).json({ message: "Mechanical GPT Backend Running 🚀" });
-});
-
-app.get("/test-gemini", async (req, res) => {
-  try {
-    const reply = await generateGeminiResponse(
-      "Explain briefly what drilling operation is in machining."
-    );
-    res.json({ reply });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
 });
 
 // ── ROUTES ────────────────────────────────────────────────────────────────────
